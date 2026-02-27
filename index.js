@@ -296,8 +296,8 @@ client.on(Events.InteractionCreate, async function(i) {
       const catId = (botao && botao.categoriaId) ? botao.categoriaId : painel.categoriaId;
       if (catId) copts.parent = catId;
       const ch = await i.guild.channels.create(copts);
-      let desc = 'Ola ' + i.user.toString() + '!\nAguarde a equipe responsavel lhe atender.';
-      if (painel.cargoId) desc += '\n\n<@&' + painel.cargoId + '>';
+      const desc = 'Ola ' + i.user.toString() + '!\nAguarde a equipe responsavel lhe atender.';
+
       const te = new EmbedBuilder()
         .setTitle('Ticket #' + num + ' - ' + (botao ? botao.label : 'Suporte'))
         .setDescription(desc)
@@ -308,7 +308,8 @@ client.on(Events.InteractionCreate, async function(i) {
         .setCustomId('fechar_' + ch.id)
         .setLabel('Fechar Ticket')
         .setStyle(ButtonStyle.Danger);
-      await ch.send({ embeds: [te], components: [new ActionRowBuilder().addComponents(fb)] });
+      const mention = painel.cargoId ? '<@&' + painel.cargoId + '>' : null;
+      await ch.send({ content: mention, embeds: [te], components: [new ActionRowBuilder().addComponents(fb)] });
       tickets.set(ch.id, {
         channelId: ch.id,
         guildId: i.guild.id,
@@ -509,4 +510,4 @@ client.on(Events.InteractionCreate, async function(i) {
         ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId('emoji').setLabel('Emoji (opcional)')
-            .setStyle(TextInputStyle.Short).setRequired(false)
+            .setStyle(TextInputSt

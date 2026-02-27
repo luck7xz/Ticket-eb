@@ -1,59 +1,45 @@
-const {
-  EmbedBuilder,
-  ActionRowBuilder,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  StringSelectMenuBuilder,
-  AttachmentBuilder
-} = require('discord.js');
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
+});
 
-function menuConfig() {
-  const s = new StringSelectMenuBuilder()
-    .setCustomId('t_config')
-    .setPlaceholder('Configure o painel')
-    .addOptions([
-      { label: 'Titulo', value: 'titulo', emoji: '📝' },
-      { label: 'Descricao', value: 'descricao', emoji: '📄' },
-      { label: 'Cor', value: 'cor', emoji: '🎨' },
-      { label: 'Autor', value: 'autor', emoji: '✍️' },
-      { label: 'Imagem', value: 'imagem', emoji: '🖼️' },
-      { label: 'Thumbnail', value: 'thumbnail', emoji: '🔲' },
-      { label: 'Rodape', value: 'rodape', emoji: '📋' },
-      { label: 'Config Gerais', value: 'geral', emoji: '🔧' },
-      { label: 'Gerenciar Opcoes', value: 'opcoes', emoji: '📌' },
-      { label: 'Salvar', value: 'salvar', emoji: '💾' },
-      { label: 'Salvar e Enviar', value: 'enviar', emoji: '📤' },
-      { label: 'Cancelar', value: 'cancelar', emoji: '❌' }
-    ]);
-  return new ActionRowBuilder().addComponents(s);
+const DONOS = ['1457424883645550815', '1280969207042801755'];
+const paineis = new Map();
+const tickets = new Map();
+const contadores = new Map();
+const sessoes = new Map();
+
+function temPerm(member) {
+  return DONOS.includes(member.user.id);
 }
 
-function menuOpcoes() {
-  const s = new StringSelectMenuBuilder()
-    .setCustomId('t_opcoes')
-    .setPlaceholder('Gerenciar opcoes')
-    .addOptions([
-      { label: 'Alterar mensagem', value: 'msg', emoji: '✏️' },
-      { label: 'Criar opcao', value: 'criar', emoji: '➕' },
-      { label: 'Editar opcao', value: 'editar', emoji: '📝' },
-      { label: 'Alterar ordem', value: 'ordem', emoji: '🔃' },
-      { label: 'Remover opcao', value: 'remover', emoji: '🗑️' },
-      { label: 'Voltar', value: 'voltar', emoji: '🔙' }
-    ]);
-  return new ActionRowBuilder().addComponents(s);
+function getPaineis(gid) {
+  if (!paineis.has(gid)) paineis.set(gid, new Map());
+  return paineis.get(gid);
 }
 
-function menuPrincipal() {
-  const s = new StringSelectMenuBuilder()
-    .setCustomId('t_principal')
-    .setPlaceholder('O que deseja fazer?')
-    .addOptions([
-      { label: 'Criar Painel', value: 'criar', emoji: '➕' },
-      { label: 'Editar Painel', value: 'editar', emoji: '✏️' },
-      { label: 'Excluir Painel', value: 'excluir', emoji: '🗑️' }
-    ]);
-  return new ActionRowBuilder().addComponents(s);
+function getNum(gid) {
+  const n = (contadores.get(gid) || 0) + 1;
+  contadores.set(gid, n);
+  return String(n).padStart(4, '0');
+}
+
+function novaSessao() {
+  return {
+    titulo: 'Suporte',
+    descricao: 'Clique em um botao para abrir seu ticket.',
+    cor: '#2b2d31',
+    autor: null,
+    imagem: null,
+    thumbnail: null,
+    rodape: null,
+    botoes: [],
+    logsId: null,
+    cargoId: null
+  };
 }
 
 function montarEmbed(s) {
@@ -64,192 +50,119 @@ function montarEmbed(s) {
   if (s.imagem) e.setImage(s.imagem);
   if (s.thumbnail) e.setThumbnail(s.thumbnail);
   if (s.rodape) e.setFooter({ text: s.rodape });
-  try {
-    if (s.cor) e.setColor(s.cor);
-  } catch (_) {
-    e.setColor('#2b2d31');
-  }
+  try { if (s.cor) e.setColor(s.cor); } catch (_) { e.setColor('#2b2d31'); }
   return e;
 }
 
-async function handleOpcoes(i, sessoes) {
-  const v = i.values[0];
-  const d = sessoes.get(i.user.id);
-  if (!d) return i.reply({ content: 'Sessao expirada.', ephemeral: true });
-
-  if (v === 'voltar') {
-    return i.update({ content: '## Config', embeds: [montarEmbed(d.s)], components: [menuConfig()] });
-  }
-  if (v === 'msg') {
-    const inp = new TextInputBuilder()
-      .setCustomId('val').setLabel('Mensagem de selecao')
-      .setStyle(TextInputStyle.Short).setRequired(true)
-      .setValue(d.s.mensagem || '');
-    return i.showModal(
-      new ModalBuilder().setCustomId('m_msg').setTitle('Mensagem')
-        .addComponents(new ActionRowBuilder().addComponents(inp))
-    );
-  }
-  if (v === 'criar') {
-    if (d.s.opcoes.length >= 25) {
-      return i.reply({ content: 'Limite de 25 opcoes.', ephemeral: true });
+function montarBotoes(s, pid) {
+  if (!s.botoes || !s.botoes.length) return null;
+  const row = new ActionRowBuilder();
+  s.botoes.forEach(function(b, i) {
+    const btn = new ButtonBuilder()
+      .setCustomId('abrir_' + pid + '_' + i)
+      .setLabel(b.label)
+      .setStyle(ButtonStyle[b.estilo] || ButtonStyle.Primary);
+    if (b.emoji) {
+      try { btn.setEmoji(b.emoji); } catch (_) {}
     }
-    const il = new TextInputBuilder()
-      .setCustomId('lbl').setLabel('Nome')
-      .setStyle(TextInputStyle.Short).setRequired(true);
-    const id = new TextInputBuilder()
-      .setCustomId('desc').setLabel('Descricao (opcional)')
-      .setStyle(TextInputStyle.Short).setRequired(false);
-    const ie = new TextInputBuilder()
-      .setCustomId('emoji').setLabel('Emoji (opcional)')
-      .setStyle(TextInputStyle.Short).setRequired(false);
-    return i.showModal(
-      new ModalBuilder().setCustomId('m_criar_op').setTitle('Criar Opcao')
-        .addComponents(
-          new ActionRowBuilder().addComponents(il),
-          new ActionRowBuilder().addComponents(id),
-          new ActionRowBuilder().addComponents(ie)
-        )
-    );
-  }
-  if (v === 'editar') {
-    if (!d.s.opcoes.length) return i.reply({ content: 'Nenhuma opcao.', ephemeral: true });
-    const opts = d.s.opcoes.map(function(o, idx) {
-      return { label: o.label, value: String(idx) };
-    });
-    const sel = new StringSelectMenuBuilder()
-      .setCustomId('t_sel_op_ed').setPlaceholder('Qual editar?').addOptions(opts);
-    return i.update({ content: 'Selecione:', components: [new ActionRowBuilder().addComponents(sel)] });
-  }
-  if (v === 'ordem') {
-    if (d.s.opcoes.length < 2) return i.reply({ content: 'Precisa 2+ opcoes.', ephemeral: true });
-    const lista = d.s.opcoes.map(function(o, idx) { return idx + ':' + o.label; }).join(', ');
-    const inp = new TextInputBuilder()
-      .setCustomId('val').setLabel('Nova ordem (ex: 2,0,1)')
-      .setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder(lista);
-    return i.showModal(
-      new ModalBuilder().setCustomId('m_ordem').setTitle('Alterar Ordem')
-        .addComponents(new ActionRowBuilder().addComponents(inp))
-    );
-  }
-  if (v === 'remover') {
-    if (!d.s.opcoes.length) return i.reply({ content: 'Nenhuma opcao.', ephemeral: true });
-    const opts = d.s.opcoes.map(function(o, idx) {
-      return { label: o.label, value: String(idx) };
-    });
-    const sel = new StringSelectMenuBuilder()
-      .setCustomId('t_sel_op_rm').setPlaceholder('Qual remover?').addOptions(opts);
-    return i.update({ content: 'Selecione:', components: [new ActionRowBuilder().addComponents(sel)] });
-  }
+    row.addComponents(btn);
+  });
+  return row;
 }
 
-async function handleModals(i, sessoes) {
-  if (i.customId.startsWith('m_campo_')) {
-    const campo = i.customId.replace('m_campo_', '');
-    const d = sessoes.get(i.user.id);
-    if (!d) return i.reply({ content: 'Sessao expirada.', ephemeral: true });
-    d.s[campo] = i.fields.getTextInputValue('val') || null;
-    sessoes.set(i.user.id, d);
-    let prev;
-    try { prev = montarEmbed(d.s); } catch (_) {
-      return i.reply({ content: 'Valor invalido.', ephemeral: true });
-    }
-    return i.update({ content: campo + ' atualizado!', embeds: [prev], components: [menuConfig()] });
-  }
-  if (i.customId === 'm_geral') {
-    const d = sessoes.get(i.user.id);
-    if (!d) return i.reply({ content: 'Sessao expirada.', ephemeral: true });
-    d.s.categoriaId = i.fields.getTextInputValue('cat') || null;
-    d.s.logsId = i.fields.getTextInputValue('log') || null;
-    d.s.cargoId = i.fields.getTextInputValue('cargo') || null;
-    sessoes.set(i.user.id, d);
-    return i.update({ content: 'Config gerais salvas!', embeds: [montarEmbed(d.s)], components: [menuConfig()] });
-  }
-  if (i.customId === 'm_msg') {
-    const d = sessoes.get(i.user.id);
-    if (!d) return i.reply({ content: 'Sessao expirada.', ephemeral: true });
-    d.s.mensagem = i.fields.getTextInputValue('val');
-    sessoes.set(i.user.id, d);
-    return i.update({ content: 'Mensagem atualizada!', embeds: [montarEmbed(d.s)], components: [menuOpcoes()] });
-  }
-  if (i.customId === 'm_criar_op') {
-    const d = sessoes.get(i.user.id);
-    if (!d) return i.reply({ content: 'Sessao expirada.', ephemeral: true });
-    d.s.opcoes.push({
-      label: i.fields.getTextInputValue('lbl'),
-      desc: i.fields.getTextInputValue('desc') || null,
-      emoji: i.fields.getTextInputValue('emoji') || null
-    });
-    sessoes.set(i.user.id, d);
-    return i.update({
-      content: 'Opcao criada! (' + d.s.opcoes.length + ')',
-      embeds: [montarEmbed(d.s)],
-      components: [menuOpcoes()]
-    });
-  }
-  if (i.customId === 'm_editar_op') {
-    const d = sessoes.get(i.user.id);
-    if (!d) return i.reply({ content: 'Sessao expirada.', ephemeral: true });
-    d.s.opcoes[d.editIdx] = {
-      label: i.fields.getTextInputValue('lbl'),
-      desc: i.fields.getTextInputValue('desc') || null,
-      emoji: i.fields.getTextInputValue('emoji') || null
-    };
-    sessoes.set(i.user.id, d);
-    return i.update({ content: 'Opcao editada!', embeds: [montarEmbed(d.s)], components: [menuOpcoes()] });
-  }
-  if (i.customId === 'm_ordem') {
-    const d = sessoes.get(i.user.id);
-    if (!d) return i.reply({ content: 'Sessao expirada.', ephemeral: true });
-    const ids = i.fields.getTextInputValue('val')
-      .split(',').map(function(x) { return parseInt(x.trim()); });
-    const ops = d.s.opcoes;
-    const ok = ids.length === ops.length
-      && ids.every(function(x) { return !isNaN(x) && x >= 0 && x < ops.length; });
-    if (!ok) return i.reply({ content: 'Ordem invalida.', ephemeral: true });
-    d.s.opcoes = ids.map(function(x) { return ops[x]; });
-    sessoes.set(i.user.id, d);
-    return i.update({ content: 'Ordem atualizada!', embeds: [montarEmbed(d.s)], components: [menuOpcoes()] });
-  }
+async function gerarTranscript(channel, td) {
+  let msgs = [];
+  try {
+    const f = await channel.messages.fetch({ limit: 100 });
+    msgs = Array.from(f.values()).reverse();
+  } catch (_) {}
+  const linhas = msgs.map(function(m) {
+    const t = new Date(m.createdTimestamp).toLocaleString('pt-BR');
+    const c = (m.content || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    return '<div class="m"><span class="t">' + t
+      + '</span> <span class="a">' + m.author.tag
+      + '</span>: ' + c + '</div>';
+  }).join('\n');
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8">'
+    + '<title>Transcript</title><style>'
+    + 'body{background:#36393f;color:#dcddde;font-family:sans-serif;padding:20px}'
+    + 'h1{color:#fff}.info{background:#2f3136;padding:10px;border-radius:8px;margin-bottom:20px}'
+    + '.m{padding:4px 0;border-bottom:1px solid #2f3136;font-size:14px}'
+    + '.t{color:#72767d;font-size:12px}.a{font-weight:bold;color:#7289da}'
+    + '</style></head><body><h1>Transcript</h1><div class="info">'
+    + '<b>Canal:</b> #' + channel.name + '<br>'
+    + '<b>Aberto por:</b> ' + (td.abrirPor || '?') + '<br>'
+    + '<b>Tipo:</b> ' + (td.tipo || 'Geral') + '<br>'
+    + '<b>Fechado:</b> ' + new Date().toLocaleString('pt-BR')
+    + '</div>' + linhas + '</body></html>';
 }
 
-async function handleSelOp(i, sessoes) {
-  if (i.customId === 't_sel_op_ed') {
-    const d = sessoes.get(i.user.id);
-    if (!d) return i.reply({ content: 'Sessao expirada.', ephemeral: true });
-    const idx = parseInt(i.values[0]);
-    const op = d.s.opcoes[idx];
-    d.editIdx = idx;
-    sessoes.set(i.user.id, d);
-    const il = new TextInputBuilder()
-      .setCustomId('lbl').setLabel('Nome')
-      .setStyle(TextInputStyle.Short).setRequired(true).setValue(op.label || '');
-    const id = new TextInputBuilder()
-      .setCustomId('desc').setLabel('Descricao')
-      .setStyle(TextInputStyle.Short).setRequired(false).setValue(op.desc || '');
-    const ie = new TextInputBuilder()
-      .setCustomId('emoji').setLabel('Emoji')
-      .setStyle(TextInputStyle.Short).setRequired(false).setValue(op.emoji || '');
-    return i.showModal(
-      new ModalBuilder().setCustomId('m_editar_op').setTitle('Editar Opcao')
-        .addComponents(
-          new ActionRowBuilder().addComponents(il),
-          new ActionRowBuilder().addComponents(id),
-          new ActionRowBuilder().addComponents(ie)
-        )
-    );
-  }
-  if (i.customId === 't_sel_op_rm') {
-    const d = sessoes.get(i.user.id);
-    if (!d) return i.reply({ content: 'Sessao expirada.', ephemeral: true });
-    const rem = d.s.opcoes.splice(parseInt(i.values[0]), 1)[0];
-    sessoes.set(i.user.id, d);
-    return i.update({
-      content: '"' + rem.label + '" removida.',
-      embeds: [montarEmbed(d.s)],
-      components: [menuOpcoes()]
-    });
-  }
+function menuPrincipal() {
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('tp_criar').setLabel('Criar Painel').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('tp_editar').setLabel('Editar Painel').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('tp_excluir').setLabel('Excluir Painel').setStyle(ButtonStyle.Danger)
+  );
+  return row;
 }
 
-module.exports = { handleOpcoes, handleModals, handleSelOp, menuPrincipal, menuConfig, menuOpcoes, montarEmbed };
+function menuConfig() {
+  const r1 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('tc_titulo').setLabel('Titulo').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tc_descricao').setLabel('Descricao').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tc_cor').setLabel('Cor').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tc_autor').setLabel('Autor').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tc_imagem').setLabel('Imagem').setStyle(ButtonStyle.Secondary)
+  );
+  const r2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('tc_thumbnail').setLabel('Thumbnail').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tc_rodape').setLabel('Rodape').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tc_geral').setLabel('Config Gerais').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tc_botoes').setLabel('Botoes').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('tc_enviar').setLabel('Salvar e Enviar').setStyle(ButtonStyle.Success)
+  );
+  const r3 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('tc_salvar').setLabel('Salvar').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('tc_cancelar').setLabel('Cancelar').setStyle(ButtonStyle.Danger)
+  );
+  return [r1, r2, r3];
+}
+
+function menuBotoes(s) {
+  const rows = [];
+  const r1 = new ActionRowBuilder();
+  r1.addComponents(
+    new ButtonBuilder().setCustomId('tb_criar').setLabel('+ Botao').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('tb_voltar').setLabel('Voltar').setStyle(ButtonStyle.Secondary)
+  );
+  rows.push(r1);
+  if (s.botoes && s.botoes.length > 0) {
+    const r2 = new ActionRowBuilder();
+    s.botoes.forEach(function(b, i) {
+      r2.addComponents(
+        new ButtonBuilder()
+          .setCustomId('tb_editar_' + i)
+          .setLabel('Editar: ' + b.label)
+          .setStyle(ButtonStyle.Primary)
+      );
+    });
+    rows.push(r2);
+    const r3 = new ActionRowBuilder();
+    s.botoes.forEach(function(b, i) {
+      r3.addComponents(
+        new ButtonBuilder()
+          .setCustomId('tb_remover_' + i)
+          .setLabel('Remover: ' + b.label)
+          .setStyle(ButtonStyle.Danger)
+      );
+    });
+    rows.push(r3);
+  }
+  return rows;
+}
+
+
+module.exports = { montarEmbed, montarBotoes, gerarTranscript, menuPrincipal, menuConfig, menuBotoes };

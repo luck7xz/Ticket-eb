@@ -173,8 +173,7 @@ function menuBotoes(s) {
 
 
 module.exports = { montarEmbed, montarBotoes, gerarTranscript, menuPrincipal, menuConfig, menuBotoes };
-    new ButtonBuilder().setCustomId('tp_excluir').setLabel('Excluir Painel').setStyle(ButtonStyle.Danger)
-  );
+    new ButtonBuilder().setCustomId('tp_excluir').setLabel('Excluir Painel').setStyle(ButtonStyle.Danger);
   return row;
 }
 

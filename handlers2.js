@@ -1,3 +1,10 @@
+const {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
+} = require('discord.js');
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -104,6 +111,68 @@ function menuPrincipal() {
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('tp_criar').setLabel('Criar Painel').setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId('tp_editar').setLabel('Editar Painel').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('tp_excluir').setLabel('Excluir Painel').setStyle(ButtonStyle.Danger)
+  );
+  return row;
+}
+
+function menuConfig() {
+  const r1 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('tc_titulo').setLabel('Titulo').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tc_descricao').setLabel('Descricao').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tc_cor').setLabel('Cor').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tc_autor').setLabel('Autor').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tc_imagem').setLabel('Imagem').setStyle(ButtonStyle.Secondary)
+  );
+  const r2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('tc_thumbnail').setLabel('Thumbnail').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tc_rodape').setLabel('Rodape').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tc_geral').setLabel('Config Gerais').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('tc_botoes').setLabel('Botoes').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('tc_enviar').setLabel('Salvar e Enviar').setStyle(ButtonStyle.Success)
+  );
+  const r3 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('tc_salvar').setLabel('Salvar').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('tc_cancelar').setLabel('Cancelar').setStyle(ButtonStyle.Danger)
+  );
+  return [r1, r2, r3];
+}
+
+function menuBotoes(s) {
+  const rows = [];
+  const r1 = new ActionRowBuilder();
+  r1.addComponents(
+    new ButtonBuilder().setCustomId('tb_criar').setLabel('+ Botao').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('tb_voltar').setLabel('Voltar').setStyle(ButtonStyle.Secondary)
+  );
+  rows.push(r1);
+  if (s.botoes && s.botoes.length > 0) {
+    const r2 = new ActionRowBuilder();
+    s.botoes.forEach(function(b, i) {
+      r2.addComponents(
+        new ButtonBuilder()
+          .setCustomId('tb_editar_' + i)
+          .setLabel('Editar: ' + b.label)
+          .setStyle(ButtonStyle.Primary)
+      );
+    });
+    rows.push(r2);
+    const r3 = new ActionRowBuilder();
+    s.botoes.forEach(function(b, i) {
+      r3.addComponents(
+        new ButtonBuilder()
+          .setCustomId('tb_remover_' + i)
+          .setLabel('Remover: ' + b.label)
+          .setStyle(ButtonStyle.Danger)
+      );
+    });
+    rows.push(r3);
+  }
+  return rows;
+}
+
+
+module.exports = { montarEmbed, montarBotoes, gerarTranscript, menuPrincipal, menuConfig, menuBotoes };
     new ButtonBuilder().setCustomId('tp_excluir').setLabel('Excluir Painel').setStyle(ButtonStyle.Danger)
   );
   return row;

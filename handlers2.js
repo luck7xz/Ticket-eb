@@ -13,7 +13,7 @@ const client = new Client({
   ]
 });
 
-const DONOS = ['1457424883645550815', '1280969207042801755'];
+const DONOS = ['1457424883645550815', '1280969207042801755','1372389669639028811' ];
 const paineis = new Map();
 const tickets = new Map();
 const contadores = new Map();
